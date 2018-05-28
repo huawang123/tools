@@ -48,8 +48,6 @@ if __name__ == '__main__':
     
     
 # ######################################
-# coding=utf-8
-__author__ = 'orisun'
 import operator
 import numpy as np
 from numpy.linalg import solve
