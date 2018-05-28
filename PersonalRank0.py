@@ -1,3 +1,4 @@
+
 # coding=utf-8
 __author__ = 'huawang'
 
@@ -43,3 +44,100 @@ if __name__ == '__main__':
          'd': {'B': 1, 'C': 1}}
 
     PersonalRank(G, alpha, 'b', 50)  # 从'b'节点开始游走
+
+    
+    
+# ######################################
+# coding=utf-8
+__author__ = 'orisun'
+import operator
+import numpy as np
+from numpy.linalg import solve
+import time
+from scipy.sparse.linalg import gmres, lgmres
+from scipy.sparse import csr_matrix
+
+if __name__ == '__main__':
+    alpha = 0.8
+    vertex = ['A', 'B', 'C', 'a', 'b', 'c', 'd']
+    M = np.matrix([[0, 0, 0, 0.5, 0, 0.5, 0],
+                   [0, 0, 0, 0.25, 0.25, 0.25, 0.25],
+                   [0, 0, 0, 0, 0, 0.5, 0.5],
+                   [0.5, 0.5, 0, 0, 0, 0, 0],
+                   [0, 1.0, 0, 0, 0, 0, 0],
+                   [0.333, 0.333, 0.333, 0, 0, 0, 0],
+                   [0, 0.5, 0.5, 0, 0, 0, 0]])
+    # print np.eye(n) - alpha * M.T
+    r0 = np.matrix([[0], [0], [0], [0], [1], [0], [0]])  # 从'b'节点开始游走
+    n = M.shape[0]
+
+    # 直接解线性方程法
+    A = np.eye(n) - alpha * M.T
+    b = (1 - alpha) * r0
+    begin = time.time()
+    r = solve(A, b)
+    end = time.time()
+    print('use time', end - begin)
+    rank = {}
+    for j in range(n):
+        rank[vertex[j]] = r[j]
+    li = sorted(rank.items(), key=operator.itemgetter(1), reverse=True)
+    for ele in li:
+        print("%s:%.3f, \t" % (ele[0], ele[1]))
+
+    # 采用CSR法对稀疏矩阵进行压缩存储，然后解线性方程
+    A = np.eye(n) - alpha * M.T
+    b = (1 - alpha) * r0
+    data = list()
+    row_ind = list()
+    col_ind = list()
+    for row in range(n):
+        for col in range(n):
+            if (A[row, col] != 0):
+                data.append(A[row, col])
+                row_ind.append(row)
+                col_ind.append(col)
+    AA = csr_matrix((data, (row_ind, col_ind)), shape=(n, n))
+    begin = time.time()
+    # 系数矩阵很稀疏时采用gmres方法求解。解方程的速度比上面快了许多
+    r = gmres(AA, b, tol=1e-08, maxiter=1)[0]
+    # r = lgmres(AA, (1 - alpha) * r0, tol=1e-08,maxiter=1)[0]  #lgmres用来克服gmres有时候不收敛的问题，会在更少的迭代次数内收敛
+    end = time.time()
+    print('use time', end - begin)
+    rank = {}
+    for j in range(n):
+        rank[vertex[j]] = r[j]
+    li = sorted(rank.items(), key=operator.itemgetter(1), reverse=True)
+    for ele in li:
+        print("%s:%.3f, \t" % (ele[0], ele[1]))
+
+    # 求逆矩阵法。跟gmres解方程的速度相当
+    A = np.eye(n) - alpha * M.T
+    b = (1 - alpha) * r0
+    begin = time.time()
+    r = A.I * b
+    end = time.time()
+    print('use time', end - begin)
+    rank = {}
+    for j in range(n):
+        rank[vertex[j]] = r[j, 0]
+    li = sorted(rank.items(), key=operator.itemgetter(1), reverse=True)
+    for ele in li:
+        print("%s:%.3f, \t" % (ele[0], ele[1]))
+
+    # 实际上可以一次性计算出从任意节点开始游走的PersonalRank结果。从总体上看，这种方法是最快的
+    A = np.eye(n) - alpha * M.T
+    begin = time.time()
+    D = A.I
+    end = time.time()
+    print('use time', end - begin)
+    for j in range(n):
+        print(vertex[j] + "\t")
+        score = {}
+        total = 0.0  # 用于归一化
+        for i in range(n):
+            score[vertex[i]] = D[i, j]
+            total += D[i, j]
+        li = sorted(score.items(), key=operator.itemgetter(1), reverse=True)
+        for ele in li:
+            print("%s:%.3f, \t" % (ele[0], ele[1] / total))
